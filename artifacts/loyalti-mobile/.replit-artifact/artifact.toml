@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/mobile/"
+title = "ЛоялТи — Мобильное приложение"
+version = "1.0.0"
+id = "artifacts/loyalti-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/mobile/" ]
+localPort = 23906
+
+[services.development]
+run = "pnpm --filter @workspace/loyalti-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/loyalti-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/loyalti-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "23906"
+BASE_PATH = "/mobile/"

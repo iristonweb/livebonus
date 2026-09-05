@@ -1,28 +1,24 @@
 {
-  "name": "all-in-guide",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "check:openapi": "node scripts/check-openapi.mjs",
+    "check:native-device-workflow-yaml": "node scripts/check-native-device-workflow-yaml.mjs",
+    "check:native-device-workflow": "node scripts/check-native-device-workflow.mjs",
+    "preflight:production": "NODE_ENV=production node scripts/release-preflight.mjs",
+    "release:gate": "node scripts/release-gate.mjs",
+    "test:native-device-workflow": "node --test scripts/check-native-device-workflow.test.mjs",
+    "test:release-gate": "node --test scripts/release-gate.test.mjs"
   },
-  "dependencies": {
-    "next": "16.1.4",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "react-markdown": "10.1.0",
-    "remark-gfm": "4.0.1"
-  },
+  "private": true,
   "devDependencies": {
-    "@types/node": "25.0.9",
-    "@types/react": "19.2.8",
-    "@types/react-dom": "19.2.3",
-    "typescript": "5.9.3"
-  },
-  "engines": {
-    "node": ">=20.9.0"
+    "js-yaml": "^4.1.1",
+    "prettier": "^3.8.3",
+    "typescript": "~5.9.3"
   }
 }

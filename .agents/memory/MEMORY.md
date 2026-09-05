@@ -1,0 +1,31 @@
+- [Live Score architecture](live-score-arch.md) — score = 500 (base) + sum(score_events.score_change), capped 0-1000; tiers: premium 900+, high 800+, above_average 700+, average 600+, below_average
+- [Expo install firewall](expo-install-firewall.md) — Expo CLI installation is blocked when Replit rejects its tar dependency; do not cycle tar pins or bypass the firewall.
+- [Expo build port isolation](expo-build-port-isolation.md) — production Expo builds must use a dedicated Metro port so the Canvas preview can remain running.
+- [Playwright browser runtime](playwright-browser-runtime.md) — browser tests use Nix-provided Chromium because the bundled headless shell lacks required GLib libraries in this environment.
+- [Points balance source](points-balance-source.md) — balance lives in users.points_balance, not summed from transactions; seed both or they diverge. Authless API calls fall back to user 1 (Expo preview).
+- [Object storage provisioning restriction](object-storage-permission.md) — App Storage setup can be blocked by account permissions; keep storage integration explicit instead of falling back to external URLs.
+- [Development schema drift](development-schema-drift.md) — the development database can lag behind committed Drizzle columns and fail API startup before routes are reachable.
+- [React 19 ref type boundaries](react-19-ref-type-boundaries.md) — mixed @types/react patch versions can make library refs nominally incompatible; adapt refs at component boundaries.
+- [Mockup preview paths](mockup-preview-paths.md) — path-mounted Vite checks need a trailing-slash base URL and relative preview navigation.
+- [Portal ref preview lifecycle](portal-ref-preview-lifecycle.md) — portal refs attach after the parent effect; report status from inside mounted content and open focus-managed overlays sequentially.
+- [OpenAPI codegen safety](openapi-codegen-safety.md) — validate contract edits before Orval because it cleans generated output before validating input.
+- [Generated client declarations](generated-client-declarations.md) — refresh workspace library declarations before mobile typechecks when new API hooks appear missing.
+- [Incremental contract output](incremental-contract-output.md) — compare generated declarations directly because tsbuildinfo can incorrectly skip stale output.
+- [YooKassa payment method mapping](yookassa-payment-method-mapping.md) — use native YooKassa types `sbp` and `mir_pay`; do not confuse Mir Pay with ordinary Mir cards
+- [PostgreSQL aggregate timestamps](postgres-aggregate-timestamps.md) — raw max/min timestamp expressions may arrive as strings, so normalize before calling Date methods
+- [React Native Web disabled assertions](react-native-web-disabled.md) — Pressable disabled state is exposed via aria-disabled, not Playwright's native disabled matcher
+- [Expo auth navigation](expo-auth-navigation.md) — nested tab layouts should render login directly when auth expires instead of routing to the root index
+- [API test bundling](api-test-bundling.md) — bundled Node route tests need the production-style createRequire bridge for CommonJS dependencies
+- [Split-process auth fixtures](split-process-auth-fixtures.md) — isolated API integration runners need signed test fixtures; in-memory auth state is not shared with the child process
+- [Legacy transaction semantics](legacy-transaction-semantics.md) — legacy amountRub is purchase value; balance changes use the applied points delta at 0.80 RUB per point
+- [Reconciliation exports](reconciliation-export.md) — correction classifications must come from the pre-correction snapshot so history remains filterable after a fix
+- [Finance integration isolation](finance-integration-isolation.md) — aborted finance integration runs can leave shared demo balances mutated and invalidate later purchase assertions
+- [Wouter query filters](wouter-query-filters.md) — query-only catalog navigation must use wouter's search subscription; pathname location alone misses pushState/popstate filter changes
+- [React Native Web AppState tests](react-native-web-appstate-tests.md) — simulate mobile foreground/background in Playwright by overriding document visibilityState and dispatching visibilitychange
+- [Ledger client contract gap](ledger-client-contract-gap.md) — server ledger metadata may arrive before generated client declarations; keep a narrow optional boundary until regeneration
+- [Disposable database configuration](disposable-database-config.md) — secret presence is not enough; integration requires a complete PostgreSQL URL and must never fall back to the shared database
+- [Generated output cleanup](generated-output-cleanup.md) — TypeScript does not remove declarations absent from the current source graph; compare source and dist before rebuilding
+- [Native release contract fixtures](native-release-contract-fixtures.md) — validate runner reports and exit codes with explicit platform targets, without physical devices
+- [Native CI command working directory](native-ci-command-cwd.md) — native adapter commands run from the mobile artifact directory, so shared workspace scripts need an adjusted relative path
+- [GitHub private branch protection](github-private-branch-protection.md) — GitHub Free blocks branch protection and rulesets for private personal repositories
+- [GitHub workflow publishing access](github-workflow-publishing.md) — workflow-path publication may require a GitHub App or authenticated git push
