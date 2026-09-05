@@ -1,0 +1,181 @@
+name: Native device release
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/native-device-release.yml"
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  # iOS and Android targets are shared by every invocation of this workflow.
+  # Queue later tag/manual runs instead of cancelling an active device check.
+  group: native-device-lab
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  workflow-contract:
+    name: Validate native device workflow contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install checker dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check native workflow YAML
+        run: node scripts/check-native-device-workflow-yaml.mjs
+
+      - name: Verify device-lab serialization
+        run: node scripts/check-native-device-workflow.mjs
+
+  native-device-release:
+    name: iOS and Android self-hosted device lab
+    if: ${{ github.event_name != 'pull_request' }}
+    needs: workflow-contract
+    # The GitHub-hosted runner cannot reach the user's physical iPhone or
+    # Android phone. Register one macOS self-hosted runner with both physical
+    # targets attached and the `native-device-lab` label.
+    runs-on: [self-hosted, native-device-lab]
+    timeout-minutes: 60
+    env:
+      # Target IDs and adapter commands are repository variables so device
+      # changes do not require editing this workflow. Never put credentials in
+      # these variables.
+      NATIVE_DEVICE_TARGETS_JSON: ${{ vars.NATIVE_DEVICE_TARGETS_JSON }}
+      NATIVE_IOS_TARGET_ID: ${{ vars.NATIVE_IOS_TARGET_ID }}
+      NATIVE_IOS_MODEL: ${{ vars.NATIVE_IOS_MODEL }}
+      NATIVE_IOS_OS: ${{ vars.NATIVE_IOS_OS }}
+      NATIVE_ANDROID_TARGET_ID: ${{ vars.NATIVE_ANDROID_TARGET_ID }}
+      NATIVE_ANDROID_MODEL: ${{ vars.NATIVE_ANDROID_MODEL }}
+      NATIVE_ANDROID_OS: ${{ vars.NATIVE_ANDROID_OS }}
+      NATIVE_EXPO_GO_VERSION: ${{ vars.NATIVE_EXPO_GO_VERSION }}
+      NATIVE_BUILD_VERSION: ${{ vars.NATIVE_BUILD_VERSION }}
+      NATIVE_DEVICE_LAB_COMMAND: ${{ vars.NATIVE_DEVICE_LAB_COMMAND }}
+      NATIVE_IOS_DEVICE_TEST_COMMAND: ${{ vars.NATIVE_IOS_DEVICE_TEST_COMMAND }}
+      NATIVE_ANDROID_DEVICE_TEST_COMMAND: ${{ vars.NATIVE_ANDROID_DEVICE_TEST_COMMAND }}
+      NATIVE_DEVICE_LAB_URL: ${{ vars.NATIVE_DEVICE_LAB_URL }}
+      # Optional: only adapters that call an authenticated lab service need
+      # this. The value must be created as a GitHub Actions secret, not a var.
+      NATIVE_DEVICE_LAB_TOKEN: ${{ secrets.NATIVE_DEVICE_LAB_TOKEN }}
+      NATIVE_DEVICE_RUNNER: self-hosted-native-device-lab
+      # Native commands run from artifacts/loyalti-mobile; the shared CI
+      # adapter is two levels above that working directory.
+      NATIVE_DEVICE_TEST_COMMAND: ../../ci/run-native-device-suite.sh
+      CI: "true"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Inspect connected physical targets
+        shell: bash
+        run: |
+          set -u
+          echo "Native target metadata is configured in repository variables."
+          if command -v adb >/dev/null 2>&1; then
+            adb devices -l
+          else
+            echo "adb is not installed on the self-hosted runner" >&2
+          fi
+          if command -v xcrun >/dev/null 2>&1; then
+            xcrun xctrace list devices || true
+          else
+            echo "xcrun is not installed on the self-hosted runner" >&2
+          fi
+
+      - name: Run native release evidence
+        id: native-release
+        env:
+          RELEASE_REPORT_DIR: ${{ runner.temp }}/native-release
+        run: pnpm --filter @workspace/loyalti-mobile run test:native-release
+
+      - name: Verify native release reports
+        id: verify-native-release-reports
+        if: always()
+        env:
+          RELEASE_REPORT_DIR: ${{ runner.temp }}/native-release
+        run: node artifacts/loyalti-mobile/scripts/verify-native-release-reports.mjs
+
+      - name: Upload native release artifact
+        id: upload-native-release-artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-device-release-report
+          path: |
+            ${{ runner.temp }}/native-release/native-device-release-report.json
+            ${{ runner.temp }}/native-release/native-device-release-report.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish native release summary
+        if: always()
+        continue-on-error: true
+        env:
+          NATIVE_RELEASE_OUTCOME: ${{ steps.native-release.outcome }}
+          REPORT_VERIFICATION_OUTCOME: ${{ steps.verify-native-release-reports.outcome }}
+          REPORT_VERIFICATION_MESSAGE: ${{ steps.verify-native-release-reports.outputs.diagnostic-message }}
+          ARTIFACT_UPLOAD_OUTCOME: ${{ steps.upload-native-release-artifact.outcome }}
+          ARTIFACT_URL: ${{ steps.upload-native-release-artifact.outputs.artifact-url }}
+        run: |
+          set -euo pipefail
+
+          native_status="${NATIVE_RELEASE_OUTCOME:-not-run}"
+          verification_status="${REPORT_VERIFICATION_OUTCOME:-not-run}"
+          artifact_status="${ARTIFACT_UPLOAD_OUTCOME:-not-run}"
+
+          {
+            echo "## Native device release"
+            echo
+            echo "| Check | Status |"
+            echo "| --- | --- |"
+            echo "| Native run | \`${native_status}\` |"
+            echo "| Report verification | \`${verification_status}\` |"
+            echo "| Artifact upload | \`${artifact_status}\` |"
+            echo
+            if [[ "${verification_status}" == "failure" ]]; then
+              echo "### Report verification diagnosis"
+              echo
+              echo "${REPORT_VERIFICATION_MESSAGE:-Native release reports could not be verified; inspect the verification step logs.}"
+              echo
+            fi
+            if [[ -n "${ARTIFACT_URL}" ]]; then
+              echo "Reports are available in the uploaded artifact:"
+              echo "- [JSON report](${ARTIFACT_URL})"
+              echo "- [Markdown report](${ARTIFACT_URL})"
+            else
+              echo "Report links are unavailable because the artifact was not uploaded."
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"

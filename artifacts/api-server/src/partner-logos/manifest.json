@@ -1,0 +1,19 @@
+{
+  "license": "Brand marks are trademarks of their respective owners. These public brand references are bundled for nominative demo use; review permissions before commercial redistribution.",
+  "sourcePolicy": "Each file is a local, cacheable SVG wordmark based on the partner's public brand identity. Official public brand pages are recorded for traceability.",
+  "assets": {
+    "pik-arenda.svg": { "partner": "ПИК-Аренда", "source": "https://pik.ru/" },
+    "mosenergosbyt.svg": { "partner": "Мосэнергосбыт", "source": "https://mosenergosbyt.ru/" },
+    "sitimobil.svg": { "partner": "Ситимобил", "source": "https://city-mobil.ru/" },
+    "apteka-36-6.svg": { "partner": "Аптека 36,6", "source": "https://366.ru/" },
+    "vkusvill.svg": { "partner": "ВкусВилл", "source": "https://vkusvill.ru/" },
+    "perekrestok.svg": { "partner": "Перекрёсток", "source": "https://www.perekrestok.ru/" },
+    "domclick-servisy.svg": { "partner": "Домклик Сервисы", "source": "https://domclick.ru/" },
+    "gorodskie-bani.svg": { "partner": "Городские Бани", "source": "https://yandex.ru/maps/" },
+    "metropoliten.svg": { "partner": "Метрополитен", "source": "https://mosmetro.ru/" },
+    "remontpro.svg": { "partner": "РемонтПро", "source": "https://yandex.ru/maps/" },
+    "domovoi.svg": { "partner": "Домовой", "source": "https://yandex.ru/maps/" },
+    "yandex-go.svg": { "partner": "Яндекс Go", "source": "https://go.yandex/" },
+    "zdravsiti.svg": { "partner": "Здравсити", "source": "https://zdravcity.ru/" }
+  }
+}

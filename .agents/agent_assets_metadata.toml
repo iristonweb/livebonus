@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "UMbW6Y510A6aABPGU8aOL"
+uri = "file://artifacts/loyalti-mobile/assets/images/icon.png"
+type = "image"
+title = "loyalti mobile app icon"

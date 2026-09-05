@@ -1,0 +1,4325 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.2.0
+  description: Live Score — Housing Trust Infrastructure API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: users
+    description: User profile and balance
+  - name: transactions
+    description: Bonus point transactions
+  - name: partners
+    description: Partner merchants
+  - name: offers
+    description: Partner offers
+  - name: dashboard
+    description: Dashboard summaries and analytics
+  - name: score
+    description: Live Score — tenant trust rating
+  - name: leases
+    description: Rental lease agreements
+  - name: finance
+    description: Authoritative monetary bonus quotes and settlements
+  - name: admin
+    description: Administrator tools and audit history
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user profile
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Authentication required
+        "404":
+          description: User not found
+    patch:
+      operationId: updateMe
+      tags: [users]
+      summary: Update current user profile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid profile input
+        "401":
+          description: Authentication required
+        "404":
+          description: User not found
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+
+  /transactions:
+    get:
+      operationId: listTransactions
+      tags: [transactions]
+      summary: List transactions for current user
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          required: false
+        - in: query
+          name: offset
+          schema:
+            type: integer
+          required: false
+      responses:
+        "200":
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+    post:
+      operationId: createTransaction
+      tags: [transactions]
+      summary: Create a new bonus transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionInput"
+      responses:
+        "201":
+          description: Created transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /transactions/{id}:
+    get:
+      operationId: getTransaction
+      tags: [transactions]
+      summary: Get a transaction by ID
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: Transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /partners:
+    get:
+      operationId: listPartners
+      tags: [partners]
+      summary: List all partners
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Partner list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Partner"
+    post:
+      operationId: createPartner
+      tags: [partners]
+      summary: Create a partner (admin)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerInput"
+      responses:
+        "201":
+          description: Created partner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Partner"
+
+  /partners/maintenance/cleanup-logos:
+    post:
+      operationId: cleanupPartnerLogos
+      tags: [partners]
+      summary: Review or remove orphaned partner logo objects (admin)
+      description: Lists managed partner logo objects that are no longer referenced by a partner. The default is a dry-run; set dryRun to false to remove the reviewed orphaned objects.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerLogoCleanupInput"
+      responses:
+        "200":
+          description: Logo cleanup review result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerLogoCleanupResult"
+        "400":
+          description: Invalid cleanup request
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+
+  /partners/maintenance/cleanup-logos/history:
+    get:
+      operationId: listPartnerLogoCleanupHistory
+      tags: [partners]
+      summary: List prior partner logo cleanup runs (admin)
+      description: Returns the immutable history of logo cleanup dry-runs and confirmed runs. This endpoint is read-only.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          description: Filter cleanup history by whether any deletion failed.
+          schema:
+            type: string
+            enum: [all, failed]
+            default: all
+          required: false
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          required: false
+      responses:
+        "200":
+          description: Prior logo cleanup runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartnerLogoCleanupHistoryEntry"
+        "400":
+          description: Invalid history query
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned object storage upload URL
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StorageUploadRequest"
+      responses:
+        "200":
+          description: Presigned upload URL and object path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageUploadResponse"
+
+  /storage/kyc/uploads/request-url:
+    post:
+      operationId: requestKycUploadUrl
+      tags: [users]
+      summary: Request a private upload URL for a verification document
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KycUploadRequest"
+      responses:
+        "200":
+          description: Private upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageUploadResponse"
+        "400":
+          description: Unsupported file
+        "401":
+          description: Authentication required
+        "503":
+          description: Object storage unavailable
+
+  /storage/objects/{objectPath}:
+    get:
+      operationId: getStoredObject
+      tags: [storage]
+      summary: Serve an uploaded object
+      parameters:
+        - in: path
+          name: objectPath
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stored object
+
+  /partners/{id}:
+    get:
+      operationId: getPartner
+      tags: [partners]
+      summary: Get partner by ID
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: Partner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Partner"
+    patch:
+      operationId: updatePartner
+      tags: [partners]
+      summary: Update a partner (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerUpdate"
+      responses:
+        "200":
+          description: Updated partner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Partner"
+    delete:
+      operationId: deletePartner
+      tags: [partners]
+      summary: Delete a partner (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "204":
+          description: Deleted
+
+  /offers:
+    get:
+      operationId: listOffers
+      tags: [offers]
+      summary: List all active offers
+      parameters:
+        - in: query
+          name: partnerId
+          schema:
+            type: integer
+          required: false
+        - in: query
+          name: category
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Offer list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Offer"
+    post:
+      operationId: createOffer
+      tags: [offers]
+      summary: Create an offer (admin/partner)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OfferInput"
+      responses:
+        "201":
+          description: Created offer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+
+  /offers/saved:
+    get:
+      operationId: listSavedOffers
+      tags: [offers]
+      summary: List saved and activated offers for the current user
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Saved and activated offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Offer"
+
+  /offers/{id}:
+    get:
+      operationId: getOffer
+      tags: [offers]
+      summary: Get an offer by ID
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: Offer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+    patch:
+      operationId: updateOffer
+      tags: [offers]
+      summary: Update an offer (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OfferUpdate"
+      responses:
+        "200":
+          description: Updated offer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+    delete:
+      operationId: deleteOffer
+      tags: [offers]
+      summary: Delete an offer (admin)
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "204":
+          description: Deleted
+
+  /admin/catalog-audit-log:
+    get:
+      operationId: listCatalogAuditLog
+      tags: [admin]
+      summary: List catalog administrator audit events
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          required: false
+        - in: query
+          name: entityType
+          schema:
+            type: string
+            enum: [partner, offer]
+          required: false
+        - in: query
+          name: action
+          schema:
+            type: string
+            enum: [create, update, delete]
+          required: false
+      responses:
+        "200":
+          description: Catalog audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CatalogAuditLog"
+
+  /admin/catalog-audit-log/export:
+    get:
+      operationId: exportCatalogAuditLog
+      tags: [admin]
+      summary: Export filtered catalog administrator audit events
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: entityType
+          schema:
+            type: string
+            enum: [partner, offer]
+          required: false
+        - in: query
+          name: action
+          schema:
+            type: string
+            enum: [create, update, delete]
+          required: false
+      responses:
+        "200":
+          description: CSV export of catalog audit events
+          content:
+            text/csv:
+              schema:
+                type: string
+        "400":
+          description: Invalid export query
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+
+  /admin/security/webhook-rejections:
+    get:
+      operationId: getWebhookRejectionSecuritySummary
+      tags: [admin]
+      summary: Review rejected YooKassa webhook sources
+      description: Returns bounded operational counts and recent source addresses only. Notification payloads and payment identifiers are never included.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Webhook rejection security summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookRejectionSecuritySummary"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+
+  /offers/{id}/save:
+    post:
+      operationId: saveOffer
+      tags: [offers]
+      summary: Save an offer for the current user
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: Saved offer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferActionResponse"
+    delete:
+      operationId: deleteSavedOffer
+      tags: [offers]
+      summary: Remove an offer from the current user's saved list
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "204":
+          description: Offer removed from the saved list
+        "401":
+          description: Authentication required
+
+  /offers/{id}/activate:
+    post:
+      operationId: activateOffer
+      tags: [offers]
+      summary: Activate an offer for the current user
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: Activated offer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferActionResponse"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get user dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/activity:
+    get:
+      operationId: getDashboardActivity
+      tags: [dashboard]
+      summary: Get recent activity feed
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          required: false
+      responses:
+        "200":
+          description: Recent activity list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get bonus stats by category
+      responses:
+        "200":
+          description: Stats by category
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryStat"
+
+  /bonus/calculate:
+    post:
+      operationId: calculateBonus
+      tags: [dashboard]
+      summary: Calculate bonus for a payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BonusCalculationInput"
+      responses:
+        "200":
+          description: Bonus calculation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BonusCalculationResult"
+
+  /finance/policy:
+    get:
+      operationId: getFinancialPolicy
+      tags: [finance]
+      summary: Get the active monetary bonus policy
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Active policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinancialPolicy"
+
+  /finance/quotes/purchase:
+    post:
+      operationId: quotePartnerPurchase
+      tags: [finance]
+      summary: Calculate a partner purchase before settlement
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseQuoteInput"
+      responses:
+        "200":
+          description: Purchase quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseQuote"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "401":
+          description: Authentication required
+        "404":
+          description: User not found
+        "503":
+          description: Financial policy is not initialized
+        "422":
+          description: Invalid amount, cap, or balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseQuote"
+
+  /finance/quotes/rental:
+    post:
+      operationId: quoteRentalDeal
+      tags: [finance]
+      summary: Calculate a rental deal before settlement
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RentalQuoteInput"
+      responses:
+        "200":
+          description: Rental quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalQuote"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "401":
+          description: Authentication required
+        "503":
+          description: Financial policy is not initialized
+        "422":
+          description: Invalid amount or policy limits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalQuote"
+
+  /finance/purchases/settle:
+    post:
+      operationId: settlePartnerPurchase
+      tags: [finance]
+      summary: Deprecated direct settlement endpoint
+      deprecated: true
+      responses:
+        "410":
+          description: Direct settlement is disabled; use provider checkout and status verification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+
+  /finance/purchases/checkout:
+    post:
+      operationId: createPurchaseCheckout
+      tags: [finance]
+      summary: Create a YooKassa checkout for a valid partner purchase
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseCheckoutInput"
+      responses:
+        "201":
+          description: Provider checkout created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseCheckoutResponse"
+        "200":
+          description: Idempotent replay of a checkout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseCheckoutResponse"
+        "422":
+          description: Invalid purchase quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "400":
+          description: Invalid request or missing Idempotency-Key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "401":
+          description: Authentication required
+        "404":
+          description: User or partner not found
+        "409":
+          description: Idempotency key conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "502":
+          description: Provider checkout failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "503":
+          description: Financial policy is not initialized
+
+  /finance/purchases/{id}/status:
+    get:
+      operationId: getPurchasePaymentStatus
+      tags: [finance]
+      summary: Verify a YooKassa payment and settle a purchase when succeeded
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current provider and deal status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchasePaymentStatusResponse"
+        "400":
+          description: Invalid purchase id
+        "401":
+          description: Authentication required
+        "404":
+          description: Purchase not found
+        "409":
+          description: Provider payment is not complete or belongs to another purchase
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "502":
+          description: Payment provider status check failed
+
+  /finance/rentals/checkout:
+    post:
+      operationId: createRentalCheckout
+      tags: [finance]
+      summary: Create a YooKassa checkout for a valid rental payment
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RentalCheckoutInput"
+      responses:
+        "201":
+          description: Provider checkout created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalCheckoutResponse"
+        "200":
+          description: Idempotent replay of a checkout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalCheckoutResponse"
+        "422":
+          description: Invalid rental quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "400":
+          description: Invalid request or missing Idempotency-Key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "401":
+          description: Authentication required
+        "404":
+          description: Tenant, lease, or landlord not found
+        "409":
+          description: Idempotency key conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "502":
+          description: Provider checkout failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "503":
+          description: Financial policy is not initialized
+
+  /finance/rentals/{id}/status:
+    get:
+      operationId: getRentalPaymentStatus
+      tags: [finance]
+      summary: Verify a YooKassa rental payment and settle it when succeeded
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current provider and rental status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalPaymentStatusResponse"
+        "400":
+          description: Invalid rental id
+        "401":
+          description: Authentication required
+        "404":
+          description: Rental payment not found
+        "409":
+          description: Provider payment is not complete or belongs to another rental
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "502":
+          description: Payment provider status check failed
+
+  /finance/yookassa/webhook:
+    post:
+      operationId: receiveYooKassaWebhook
+      tags: [finance]
+      summary: Receive a YooKassa payment notification
+      responses:
+        "200":
+          description: Notification accepted after provider verification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "401":
+          description: Webhook source is not in the explicitly configured YooKassa allowlist
+
+  /finance/rentals/settle:
+    post:
+      operationId: settleRentalDeal
+      tags: [finance]
+      summary: Deprecated direct settlement endpoint
+      deprecated: true
+      responses:
+        "410":
+          description: Direct settlement is disabled; use provider checkout and status verification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+
+  /finance/ledger:
+    get:
+      operationId: listFinancialLedger
+      tags: [finance]
+      summary: List the current user's monetary bonus ledger
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          required: false
+        - in: query
+          name: category
+          description: Filter by the legacy transaction category.
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: partnerId
+          schema:
+            type: integer
+            minimum: 1
+          required: false
+        - in: query
+          name: dealType
+          schema:
+            type: string
+            enum: [partner_purchase, rental_deal]
+          required: false
+      responses:
+        "200":
+          description: Ledger entries owned by the current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FinancialLedgerEntry"
+
+  /finance/payment-reconciliation:
+    get:
+      operationId: listPaymentReconciliation
+      tags: [finance]
+      summary: List provider payments that need administrator review
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          description: Filter the review queue by deal status.
+          schema:
+            type: string
+            enum: [all, pending, payment_failed, cancelled]
+            default: all
+          required: false
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          required: false
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          required: false
+      responses:
+        "200":
+          description: Payment review queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentReconciliationReport"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+  /finance/payment-reconciliation/{id}/resolve:
+    post:
+      operationId: resolvePaymentReconciliation
+      tags: [finance]
+      summary: Verify and resolve one provider payment in the administrator queue
+      description: Re-checks the payment with the provider and applies the existing idempotent settlement path when the provider confirms it.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Provider verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentReconciliationResolutionResponse"
+        "400":
+          description: Invalid payment id
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+        "404":
+          description: Payment not found
+        "409":
+          description: Provider payment cannot be reconciled
+        "502":
+          description: Provider verification failed
+
+  /finance/reconciliation:
+    get:
+      operationId: listBalanceReconciliation
+      tags: [finance]
+      summary: List monetary and legacy balance reconciliation results (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          description: Filter by reconciliation classification.
+          schema:
+            type: string
+            enum: [all, consistent, rounding_difference, mismatch, unmigrated]
+            default: mismatch
+          required: false
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          required: false
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          required: false
+      responses:
+        "200":
+          description: Reconciliation report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceReconciliationReport"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+
+  /finance/reconciliation/export:
+    get:
+      operationId: exportBalanceReconciliation
+      tags: [finance]
+      summary: Export filtered balance reconciliation results and correction history (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          description: Filter current reconciliation results by classification.
+          schema:
+            type: string
+            enum: [all, consistent, rounding_difference, mismatch, unmigrated]
+            default: all
+          required: false
+        - in: query
+          name: from
+          description: Inclusive UTC start date for correction history.
+          schema:
+            type: string
+            format: date
+          required: false
+        - in: query
+          name: to
+          description: Inclusive UTC end date for correction history.
+          schema:
+            type: string
+            format: date
+          required: false
+      responses:
+        "200":
+          description: CSV export of reconciliation results and correction history
+          content:
+            text/csv:
+              schema:
+                type: string
+        "400":
+          description: Invalid export query or date range
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+
+  /finance/reconciliation/{userId}:
+    get:
+      operationId: getBalanceReconciliation
+      tags: [finance]
+      summary: Get one user's balance reconciliation and correction history (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User reconciliation detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceReconciliationDetail"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+        "404":
+          description: User not found
+
+  /finance/reconciliation/{userId}/correct:
+    post:
+      operationId: correctBalanceReconciliation
+      tags: [finance]
+      summary: Apply an explicit, audited balance reconciliation correction (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BalanceReconciliationCorrectionInput"
+      responses:
+        "201":
+          description: Correction applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceReconciliationCorrectionResponse"
+        "200":
+          description: Idempotent replay of the correction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceReconciliationCorrectionResponse"
+        "400":
+          description: Invalid correction request
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+        "404":
+          description: User not found
+        "409":
+          description: Balance is already consistent, only a valid rounding difference remains, or the correction key conflicts
+
+  /finance/deals/{id}:
+    get:
+      operationId: getFinancialDeal
+      tags: [finance]
+      summary: Get a financial deal owned by the current user
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Financial deal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinancialDeal"
+        "404":
+          description: Deal not found
+
+  /finance/deals/{id}/refund:
+    post:
+      operationId: refundFinancialDeal
+      tags: [finance]
+      summary: Create immutable reversal entries for a deal
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundInput"
+      responses:
+        "201":
+          description: Refunded deal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundResponse"
+        "200":
+          description: Idempotent replay of the refund
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundResponse"
+        "202":
+          description: Provider refund is pending; no ledger reversal has been created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundResponse"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+
+  /admin/economics:
+    get:
+      operationId: getEconomics
+      tags: [dashboard]
+      summary: Get confirmed platform economics for an administrator
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: from
+          description: Inclusive UTC start date. Defaults to the first day of the current month.
+          schema:
+            type: string
+            format: date
+          required: false
+        - in: query
+          name: to
+          description: Inclusive UTC end date.
+          schema:
+            type: string
+            format: date
+          required: false
+        - in: query
+          name: period
+          description: Reporting period interpretation.
+          schema:
+            type: string
+            enum: [day, week, month, custom]
+            default: month
+          required: false
+        - in: query
+          name: status
+          description: Which confirmed deal statuses to include.
+          schema:
+            type: string
+            enum: [all, settled, refunded]
+            default: all
+          required: false
+      responses:
+        "200":
+          description: Confirmed financial economics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformEconomics"
+        "400":
+          description: Invalid reporting period
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+
+  /admin/economics/audit:
+    get:
+      operationId: getEconomicsAudit
+      tags: [dashboard]
+      summary: Audit historical financial deals and ledger postings for an administrator
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          description: Maximum number of deals to include in the review window.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+          required: false
+        - in: query
+          name: offset
+          description: Number of eligible deals to skip before the review window.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          required: false
+        - in: query
+          name: snapshotAt
+          description: ISO timestamp returned by the first request in a review. Reuse it for every page to keep the audit set stable while new deals arrive.
+          schema:
+            type: string
+            format: date-time
+          required: false
+      responses:
+        "200":
+          description: Historical financial deal audit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EconomicsAuditReport"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+
+  /score:
+    get:
+      operationId: getScore
+      tags: [score]
+      summary: Get current user's Live Score
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Live Score data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveScore"
+
+  /score/disputes:
+    get:
+      operationId: listScoreDisputes
+      tags: [score]
+      summary: List the current user's score disputes
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Score disputes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScoreDispute"
+        "401":
+          description: Authentication required
+
+  /score/history:
+    get:
+      operationId: getScoreHistory
+      tags: [score]
+      summary: Get score change history
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Score event history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScoreEvent"
+
+  /score/passport/shares:
+    get:
+      operationId: listPassportShares
+      tags: [score]
+      summary: List the current user's Live Passport links
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Passport links
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LivePassportShare"
+        "401":
+          description: Authentication required
+    post:
+      operationId: createPassportShare
+      tags: [score]
+      summary: Create a Live Passport link for the current user
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLivePassportShare"
+      responses:
+        "201":
+          description: New passport link; the token is returned only once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LivePassportShareCreated"
+        "400":
+          description: Invalid expiry
+        "409":
+          description: Active link limit reached
+        "401":
+          description: Authentication required
+
+  /score/passport/shares/{id}/revoke:
+    post:
+      operationId: revokePassportShare
+      tags: [score]
+      summary: Revoke one of the current user's Live Passport links
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+            minimum: 1
+          required: true
+      responses:
+        "200":
+          description: Revoked passport link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LivePassportShare"
+        "400":
+          description: Invalid link id
+        "401":
+          description: Authentication required
+        "404":
+          description: Link not found
+
+  /score/passport/{token}:
+    get:
+      operationId: getPassport
+      tags: [score]
+      summary: Get a public Live Passport by share token
+      parameters:
+        - in: path
+          name: token
+          schema:
+            type: string
+            minLength: 40
+            maxLength: 80
+          required: true
+      responses:
+        "200":
+          description: Live Passport data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LivePassport"
+        "404":
+          description: Passport unavailable
+        "429":
+          description: Public passport rate limit exceeded
+
+  /auth/request-otp:
+    post:
+      operationId: requestOtp
+      tags: [auth]
+      summary: Request an OTP code for phone authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequest"
+      responses:
+        "200":
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpResponse"
+
+  /auth/verify-otp:
+    post:
+      operationId: verifyOtp
+      tags: [auth]
+      summary: Verify OTP code and receive auth token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerify"
+      responses:
+        "200":
+          description: Auth token and user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthToken"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout (client discards the bearer token)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        "401":
+          description: Authentication required
+
+  /users/me/verify/phone:
+    post:
+      operationId: verifyPhone
+      tags: [users]
+      summary: Reject direct phone verification; use the OTP flow
+      security:
+        - BearerAuth: []
+      responses:
+        "401":
+          description: Authentication required
+        "403":
+          description: Phone verification is available only through OTP
+        "404":
+          description: User not found
+        "409":
+          description: Phone is already verified
+
+  /users/me/verify/identity:
+    post:
+      operationId: verifyIdentity
+      tags: [users]
+      summary: Submit an identity document for administrator review
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationSubmission"
+      responses:
+        "202":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyResponse"
+        "400":
+          description: Invalid or unsupported document
+        "401":
+          description: Authentication required
+        "403":
+          description: Document belongs to another user
+        "409":
+          description: Verification is already pending or complete
+        "503":
+          description: Private object storage is unavailable
+
+  /users/me/verify/income:
+    post:
+      operationId: verifyIncome
+      tags: [users]
+      summary: Submit an income document for administrator review
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationSubmission"
+      responses:
+        "202":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyResponse"
+        "400":
+          description: Invalid or unsupported document
+        "401":
+          description: Authentication required
+        "403":
+          description: Document belongs to another user
+        "409":
+          description: Verification is already pending or complete
+        "503":
+          description: Private object storage is unavailable
+
+  /users/me/verifications:
+    get:
+      operationId: listMyVerifications
+      tags: [users]
+      summary: List the current user's verification applications
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Verification applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VerificationApplication"
+        "401":
+          description: Authentication required
+
+  /users/me/verifications/{applicationId}/document:
+    get:
+      operationId: getMyVerificationDocument
+      tags: [users]
+      summary: Stream a private verification document for its owner
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: applicationId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Private document
+          content:
+            application/pdf: {}
+            image/jpeg: {}
+            image/png: {}
+            image/webp: {}
+        "401":
+          description: Authentication required
+        "404":
+          description: Document not found
+        "503":
+          description: Private document storage is unavailable
+
+  /users/{userId}/verify/{verificationType}/decision:
+    post:
+      operationId: decideVerification
+      tags: [users]
+      summary: Approve or reject a pending verification application
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: verificationType
+          required: true
+          schema:
+            type: string
+            enum: [identity, income]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationDecisionInput"
+      responses:
+        "200":
+          description: Decision result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyResponse"
+        "400":
+          description: Invalid decision or missing rejection comment
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+        "404":
+          description: User not found
+        "409":
+          description: Application was already decided
+
+  /users/verifications:
+    get:
+      operationId: listVerificationQueue
+      tags: [users]
+      summary: List verification applications for an administrator
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected, all]
+            default: pending
+      responses:
+        "200":
+          description: Verification queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VerificationQueueItem"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+
+  /users/verifications/{applicationId}/document:
+    get:
+      operationId: getVerificationDocument
+      tags: [users]
+      summary: Stream a verification document for an administrator
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: applicationId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Private document
+          content:
+            application/pdf: {}
+            image/jpeg: {}
+            image/png: {}
+            image/webp: {}
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+        "404":
+          description: Document not found
+        "503":
+          description: Private document storage is unavailable
+
+  /score/timeline:
+    get:
+      operationId: getScoreTimeline
+      tags: [score]
+      summary: Get cumulative score timeline for chart
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Timeline points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScoreTimelinePoint"
+
+  /score/dispute:
+    post:
+      operationId: createDispute
+      tags: [score]
+      summary: Open a dispute about a score event
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisputeInput"
+      responses:
+        "201":
+          description: Dispute created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisputeResponse"
+        "400":
+          description: Dispute is missing a valid lease/event binding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceError"
+        "401":
+          description: Authentication required
+        "404":
+          description: Lease or score event not found
+        "409":
+          description: An equivalent dispute already exists
+        "422":
+          description: Score event cannot be disputed
+
+  /admin/score/disputes:
+    get:
+      operationId: listAdminScoreDisputes
+      tags: [admin]
+      summary: List score disputes for moderation
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [open, all, created, under_review, resolved, rejected]
+            default: open
+      responses:
+        "200":
+          description: Moderation queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminScoreDispute"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+
+  /admin/score/disputes/{id}/decision:
+    post:
+      operationId: decideScoreDispute
+      tags: [admin]
+      summary: Move a score dispute through moderation or make a final decision
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScoreDisputeDecision"
+      responses:
+        "200":
+          description: Dispute decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScoreDisputeDecisionResponse"
+        "400":
+          description: Invalid dispute decision
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+        "409":
+          description: Dispute was already decided or changed concurrently
+        "404":
+          description: Dispute not found
+
+  /leases:
+    get:
+      operationId: listLeases
+      tags: [leases]
+      summary: List current user's leases
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lease list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lease"
+    post:
+      operationId: createLease
+      tags: [leases]
+      summary: Add a new lease
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaseInput"
+      responses:
+        "201":
+          description: Created lease
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lease"
+        "401":
+          description: Authentication required
+        "422":
+          description: Lease validation failed
+
+  /leases/{id}:
+    patch:
+      operationId: updateLease
+      tags: [leases]
+      summary: Update lease — landlord rating, deposit returned, end date
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaseUpdate"
+      responses:
+        "200":
+          description: Updated lease
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lease"
+        "400":
+          description: Invalid lease input
+        "401":
+          description: Authentication required
+        "404":
+          description: Lease not found
+        "422":
+          description: Lease validation failed
+
+  /leases/{id}/confirm-payment:
+    post:
+      operationId: confirmPayment
+      tags: [leases]
+      summary: Record an on-time payment — awards +15 score (streak bonus every 6)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Payment recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "401":
+          description: Authentication required
+        "404":
+          description: Lease not found
+
+  /leases/{id}/late-payment:
+    post:
+      operationId: recordLatePayment
+      tags: [leases]
+      summary: Record a late payment — penalises -25 score
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Late payment recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "401":
+          description: Authentication required
+        "404":
+          description: Lease not found
+
+components:
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: false
+      schema:
+        type: string
+        minLength: 1
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    User:
+      type: object
+      required: [id, phone, name, pointsBalance, status, liveScore, verificationLevel, isAdmin, createdAt]
+      properties:
+        id:
+          type: integer
+        phone:
+          type: string
+        name:
+          type: string
+        email:
+          type: ["string", "null"]
+        pointsBalance:
+          type: integer
+        bonusBalanceRub:
+          type: number
+        status:
+          type: string
+          enum: [novice, silver, gold, platinum]
+        statusMultiplier:
+          type: number
+        pointsToNextStatus:
+          type: ["integer", "null"]
+        nextStatus:
+          type: ["string", "null"]
+        liveScore:
+          type: integer
+        verificationLevel:
+          type: integer
+        isPhoneVerified:
+          type: boolean
+        isIdentityVerified:
+          type: boolean
+        isIncomeVerified:
+          type: boolean
+        identityVerificationStatus:
+          $ref: "#/components/schemas/VerificationStatus"
+        incomeVerificationStatus:
+          $ref: "#/components/schemas/VerificationStatus"
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+
+    UserUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+
+    VerificationStatus:
+      type: string
+      enum: [not_started, pending, approved, rejected]
+
+    KycUploadRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          maxLength: 160
+        size:
+          type: integer
+          minimum: 1
+          maximum: 10485760
+        contentType:
+          type: string
+          enum: [application/pdf, image/jpeg, image/png, image/webp]
+
+    VerificationSubmission:
+      type: object
+      required: [objectPath, fileName, contentType, fileSize]
+      properties:
+        objectPath:
+          type: string
+        fileName:
+          type: string
+          maxLength: 160
+        contentType:
+          type: string
+          enum: [application/pdf, image/jpeg, image/png, image/webp]
+        fileSize:
+          type: integer
+          minimum: 1
+          maximum: 10485760
+
+    VerificationApplication:
+      type: object
+      required: [id, verificationType, status, fileName, contentType, fileSize, createdAt]
+      properties:
+        id:
+          type: integer
+        verificationType:
+          type: string
+          enum: [identity, income]
+        status:
+          $ref: "#/components/schemas/VerificationStatus"
+        fileName:
+          type: string
+        contentType:
+          type: string
+        fileSize:
+          type: integer
+        rejectionReason:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        decidedAt:
+          type: ["string", "null"]
+
+    VerificationQueueItem:
+      allOf:
+        - $ref: "#/components/schemas/VerificationApplication"
+        - type: object
+          required: [user]
+          properties:
+            user:
+              type: ["object", "null"]
+              properties:
+                id:
+                  type: integer
+                name:
+                  type: string
+                phone:
+                  type: string
+
+    VerificationDecisionInput:
+      type: object
+      required: [approved]
+      properties:
+        approved:
+          type: boolean
+        comment:
+          type: string
+          maxLength: 1000
+
+    Transaction:
+      type: object
+      required: [id, userId, type, category, amountRub, amountRubSigned, bonusValueRub, direction, dealType, settlementStatus, operationSource, isReversal, pointsEarned, description, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        type:
+          type: string
+          enum: [earn, redeem, expire, bonus]
+        category:
+          type: string
+          enum: [rent, utilities, transport, health, food, other]
+        amountRub:
+          type: number
+        amountRubSigned:
+          type: number
+        bonusValueRub:
+          type: number
+        direction:
+          type: ["string", "null"]
+          enum: [debit, credit, null]
+        dealType:
+          type: ["string", "null"]
+          enum: [partner_purchase, rental_deal, null]
+        settlementStatus:
+          type: ["string", "null"]
+          enum: [settled, refunded, null]
+        operationSource:
+          type: ["string", "null"]
+        isReversal:
+          type: boolean
+        pointsEarned:
+          type: integer
+        multiplier:
+          type: number
+        description:
+          type: string
+        partnerName:
+          type: ["string", "null"]
+        partnerLogoUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    TransactionInput:
+      type: object
+      required: [type, category, amountRub, pointsEarned, description]
+      properties:
+        userId:
+          type: integer
+        type:
+          type: string
+          enum: [earn, redeem, expire, bonus]
+        category:
+          type: string
+          enum: [rent, utilities, transport, health, food, other]
+        amountRub:
+          type: number
+        amountRubSigned:
+          type: number
+        direction:
+          type: ["string", "null"]
+          enum: [debit, credit, null]
+        pointsEarned:
+          type: integer
+        multiplier:
+          type: number
+        description:
+          type: string
+        partnerId:
+          type: ["integer", "null"]
+
+    FinancialPolicy:
+      type: object
+      required: [id, version, currency, purchaseRedemptionRate, partnerFeeRate, rentalBonusRate, effectiveFrom]
+      properties:
+        id:
+          type: integer
+        version:
+          type: integer
+        currency:
+          type: string
+          enum: [RUB]
+        purchaseRedemptionRate:
+          type: number
+        partnerFeeRate:
+          type: number
+        rentalBonusRate:
+          type: number
+        effectiveFrom:
+          type: string
+
+    FinanceError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        reasons:
+          type: array
+          items:
+            type: object
+            required: [code, message]
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+
+    PurchaseQuoteInput:
+      type: object
+      required: [grossAmountRub]
+      properties:
+        grossAmountRub:
+          type: number
+          minimum: 0
+        requestedBonusRub:
+          type: number
+          minimum: 0
+        partnerId:
+          type: integer
+
+    RentalQuoteInput:
+      type: object
+      required: [grossAmountRub]
+      properties:
+        grossAmountRub:
+          type: number
+          minimum: 0
+
+    PurchaseSettlementInput:
+      type: object
+      required: [grossAmountRub]
+      properties:
+        grossAmountRub:
+          type: number
+          minimum: 0
+        requestedBonusRub:
+          type: number
+          minimum: 0
+        partnerId:
+          type: integer
+        externalReference:
+          type: string
+        idempotencyKey:
+          type: string
+          minLength: 1
+
+    PurchaseCheckoutInput:
+      type: object
+      required: [grossAmountRub]
+      properties:
+        grossAmountRub:
+          type: number
+          minimum: 0
+        requestedBonusRub:
+          type: number
+          minimum: 0
+        partnerId:
+          type: integer
+        externalReference:
+          type: string
+        idempotencyKey:
+          type: string
+          minLength: 1
+        paymentMethod:
+          type: string
+          enum: [sbp, mir_pay]
+          default: mir_pay
+          description: Payment method for the YooKassa hosted checkout. Mir Pay is passed as the native YooKassa mir_pay type.
+
+    RentalCheckoutInput:
+      type: object
+      required: [leaseId, grossAmountRub]
+      properties:
+        leaseId:
+          type: integer
+        grossAmountRub:
+          type: number
+          minimum: 0
+        externalReference:
+          type: string
+        idempotencyKey:
+          type: string
+          minLength: 1
+        paymentMethod:
+          type: string
+          enum: [sbp, mir_pay]
+          default: mir_pay
+          description: Payment method for the YooKassa hosted checkout. Mir Pay is passed as the native YooKassa mir_pay type.
+
+    RentalSettlementInput:
+      type: object
+      required: [leaseId, grossAmountRub]
+      properties:
+        leaseId:
+          type: integer
+        grossAmountRub:
+          type: number
+          minimum: 0
+        landlordUserId:
+          type: integer
+        externalReference:
+          type: string
+        idempotencyKey:
+          type: string
+          minLength: 1
+
+    PurchaseQuote:
+      type: object
+      required: [kind, valid, currency, policyVersion, grossAmountRub, maxBonusRedemptionRub, availableBonusRub, requestedBonusRub, bonusRedeemedRub, netAmountRub, partnerFeeRub, rates, breakdown, errors]
+      properties:
+        kind:
+          type: string
+          enum: [partner_purchase]
+        valid:
+          type: boolean
+        currency:
+          type: string
+          enum: [RUB]
+        policyVersion:
+          type: integer
+        grossAmountRub:
+          type: number
+        maxBonusRedemptionRub:
+          type: number
+        availableBonusRub:
+          type: number
+        requestedBonusRub:
+          type: number
+        bonusRedeemedRub:
+          type: number
+        netAmountRub:
+          type: number
+        partnerFeeRub:
+          type: number
+        rates:
+          type: object
+          required: [maxRedemptionRate, partnerFeeRate]
+          properties:
+            maxRedemptionRate:
+              type: number
+            partnerFeeRate:
+              type: number
+        breakdown:
+          type: object
+          required: [grossRub, redemptionCapRub, balanceCapRub, bonusRedeemedRub, netRub, partnerFeeRub]
+          properties:
+            grossRub:
+              type: number
+            redemptionCapRub:
+              type: number
+            balanceCapRub:
+              type: number
+            bonusRedeemedRub:
+              type: number
+            netRub:
+              type: number
+            partnerFeeRub:
+              type: number
+        errors:
+          type: array
+          items:
+            type: object
+            required: [code, message]
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+
+    RentalQuote:
+      type: object
+      required: [kind, valid, currency, policyVersion, grossAmountRub, landlordFeeRub, landlordBonusRub, tenantBonusRub, rates, breakdown, errors]
+      properties:
+        kind:
+          type: string
+          enum: [rental_deal]
+        valid:
+          type: boolean
+        currency:
+          type: string
+          enum: [RUB]
+        policyVersion:
+          type: integer
+        grossAmountRub:
+          type: number
+        landlordFeeRub:
+          type: number
+        landlordBonusRub:
+          type: number
+        tenantBonusRub:
+          type: number
+        rates:
+          type: object
+          required: [landlordFeeRate, landlordBonusRate, tenantBonusRate]
+          properties:
+            landlordFeeRate:
+              type: number
+            landlordBonusRate:
+              type: number
+            tenantBonusRate:
+              type: number
+        breakdown:
+          type: object
+          required: [grossRub, landlordFeeRub, landlordBonusRub, tenantBonusRub]
+          properties:
+            grossRub:
+              type: number
+            landlordFeeRub:
+              type: number
+            landlordBonusRub:
+              type: number
+            tenantBonusRub:
+              type: number
+        errors:
+          type: array
+          items:
+            type: object
+            required: [code, message]
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+
+    FinancialDeal:
+      type: object
+      required: [id, kind, status, userId, policyVersion, idempotencyKey, currency, grossAmountRub, bonusRedeemedRub, netAmountRub, feeAmountRub, landlordBonusRub, tenantBonusRub, createdAt, settledAt, paymentProvider, paymentMethod, providerPaymentId, providerPaymentStatus, providerCheckoutUrl, providerRefundId, providerRefundStatus, paymentFailureReason, paymentUpdatedAt]
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [partner_purchase, rental_deal]
+        status:
+          type: string
+          enum: [pending, payment_failed, cancelled, settled, refunded]
+        userId:
+          type: integer
+        partnerId:
+          type: ["integer", "null"]
+        leaseId:
+          type: ["integer", "null"]
+        policyVersion:
+          type: integer
+        externalReference:
+          type: ["string", "null"]
+        idempotencyKey:
+          type: string
+        currency:
+          type: string
+          enum: [RUB]
+        grossAmountRub:
+          type: number
+        bonusRedeemedRub:
+          type: number
+        netAmountRub:
+          type: number
+        feeAmountRub:
+          type: number
+        landlordBonusRub:
+          type: number
+        tenantBonusRub:
+          type: number
+        paymentProvider:
+          type: ["string", "null"]
+        paymentMethod:
+          type: string
+          enum: [sbp, mir_pay]
+        providerPaymentId:
+          type: ["string", "null"]
+        providerPaymentStatus:
+          type: ["string", "null"]
+        providerCheckoutUrl:
+          type: ["string", "null"]
+        providerRefundId:
+          type: ["string", "null"]
+        providerRefundStatus:
+          type: ["string", "null"]
+        paymentFailureReason:
+          type: ["string", "null"]
+        paymentUpdatedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        settledAt:
+          type: ["string", "null"]
+        refundedAt:
+          type: ["string", "null"]
+
+    SettlementResponse:
+      type: object
+      required: [deal, quote, idempotent]
+      properties:
+        deal:
+          $ref: "#/components/schemas/FinancialDeal"
+        quote:
+          oneOf:
+            - $ref: "#/components/schemas/PurchaseQuote"
+            - $ref: "#/components/schemas/RentalQuote"
+        idempotent:
+          type: boolean
+
+    PurchaseCheckoutResponse:
+      type: object
+      required: [deal, quote, checkoutUrl, paymentStatus]
+      properties:
+        deal:
+          $ref: "#/components/schemas/FinancialDeal"
+        quote:
+          $ref: "#/components/schemas/PurchaseQuote"
+        checkoutUrl:
+          type: ["string", "null"]
+        paymentStatus:
+          type: string
+          enum: [pending, waiting_for_capture, succeeded, canceled, failed]
+
+    RentalCheckoutResponse:
+      type: object
+      required: [deal, quote, checkoutUrl, paymentStatus]
+      properties:
+        deal:
+          $ref: "#/components/schemas/FinancialDeal"
+        quote:
+          $ref: "#/components/schemas/RentalQuote"
+        checkoutUrl:
+          type: ["string", "null"]
+        paymentStatus:
+          type: string
+          enum: [pending, waiting_for_capture, succeeded, canceled, failed]
+
+    PurchasePaymentStatusResponse:
+      type: object
+      required: [deal, paymentStatus]
+      properties:
+        deal:
+          $ref: "#/components/schemas/FinancialDeal"
+        paymentStatus:
+          type: string
+          enum: [pending, waiting_for_capture, succeeded, canceled, failed]
+        providerPaymentId:
+          type: ["string", "null"]
+        message:
+          type: ["string", "null"]
+
+    RentalPaymentStatusResponse:
+      type: object
+      required: [deal, paymentStatus]
+      properties:
+        deal:
+          $ref: "#/components/schemas/FinancialDeal"
+        paymentStatus:
+          type: string
+          enum: [pending, waiting_for_capture, succeeded, canceled, failed]
+        providerPaymentId:
+          type: ["string", "null"]
+        message:
+          type: ["string", "null"]
+
+    WebhookResponse:
+      type: object
+      required: [received]
+      properties:
+        received:
+          type: boolean
+
+    RefundInput:
+      type: object
+      properties:
+        idempotencyKey:
+          type: string
+          minLength: 1
+
+    RefundResponse:
+      type: object
+      required: [deal, idempotent]
+      properties:
+        deal:
+          $ref: "#/components/schemas/FinancialDeal"
+        idempotent:
+          type: boolean
+
+    FinancialLedgerEntry:
+      type: object
+      required: [id, dealId, transactionId, entryType, source, reference, amountRub, amountRubSigned, dealType, category, transactionType, partnerId, partnerName, settlementStatus, dealGrossAmountRub, dealNetAmountRub, dealFeeAmountRub, dealBonusRedeemedRub, dealLandlordBonusRub, dealTenantBonusRub, createdAt]
+      properties:
+        id:
+          type: integer
+        dealId:
+          type: integer
+        transactionId:
+          type: ["integer", "null"]
+        userId:
+          type: ["integer", "null"]
+        entryType:
+          type: string
+          enum: [debit, credit]
+        source:
+          type: string
+        reference:
+          type: string
+        amountRub:
+          type: number
+        amountRubSigned:
+          type: number
+        dealType:
+          type: ["string", "null"]
+          enum: [partner_purchase, rental_deal, null]
+        category:
+          type: ["string", "null"]
+        transactionType:
+          type: ["string", "null"]
+        partnerId:
+          type: ["integer", "null"]
+        partnerName:
+          type: ["string", "null"]
+        settlementStatus:
+          type: ["string", "null"]
+          enum: [pending, payment_failed, cancelled, settled, refunded, null]
+        paymentProvider:
+          type: ["string", "null"]
+        providerPaymentId:
+          type: ["string", "null"]
+        providerPaymentStatus:
+          type: ["string", "null"]
+        providerRefundId:
+          type: ["string", "null"]
+        providerRefundStatus:
+          type: ["string", "null"]
+        dealIdempotencyKey:
+          type: ["string", "null"]
+        dealGrossAmountRub:
+          type: ["number", "null"]
+        dealNetAmountRub:
+          type: ["number", "null"]
+        dealFeeAmountRub:
+          type: ["number", "null"]
+        dealBonusRedeemedRub:
+          type: ["number", "null"]
+        dealLandlordBonusRub:
+          type: ["number", "null"]
+        dealTenantBonusRub:
+          type: ["number", "null"]
+        balanceAfterRub:
+          type: ["number", "null"]
+        reversalOfId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+
+    PaymentReconciliationItem:
+      type: object
+      required: [id, kind, status, userId, userName, userPhone, partnerId, partnerName, policyVersion, idempotencyKey, grossAmountRub, bonusRedeemedRub, netAmountRub, feeAmountRub, landlordBonusRub, tenantBonusRub, currency, paymentProvider, paymentMethod, providerPaymentId, providerPaymentStatus, providerRefundStatus, paymentFailureReason, createdAt, paymentUpdatedAt, needsReview, reviewReason]
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [partner_purchase, rental_deal]
+        status:
+          type: string
+          enum: [pending, payment_failed, cancelled]
+        userId:
+          type: integer
+        userName:
+          type: string
+        userPhone:
+          type: string
+        partnerId:
+          type: ["integer", "null"]
+        partnerName:
+          type: ["string", "null"]
+        policyVersion:
+          type: integer
+        idempotencyKey:
+          type: string
+        grossAmountRub:
+          type: number
+        bonusRedeemedRub:
+          type: number
+        netAmountRub:
+          type: number
+        feeAmountRub:
+          type: number
+        landlordBonusRub:
+          type: number
+        tenantBonusRub:
+          type: number
+        currency:
+          type: string
+          enum: [RUB]
+        paymentProvider:
+          type: ["string", "null"]
+        paymentMethod:
+          type: string
+          enum: [sbp, mir_pay]
+        providerPaymentId:
+          type: ["string", "null"]
+        providerPaymentStatus:
+          type: ["string", "null"]
+        providerRefundStatus:
+          type: ["string", "null"]
+        paymentFailureReason:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        paymentUpdatedAt:
+          type: ["string", "null"]
+        needsReview:
+          type: boolean
+        reviewReason:
+          type: string
+
+    PaymentReconciliationResolutionResponse:
+      type: object
+      required: [deal, paymentStatus, providerPaymentId, idempotent]
+      properties:
+        deal:
+          $ref: "#/components/schemas/FinancialDeal"
+        paymentStatus:
+          type: string
+          enum: [pending, waiting_for_capture, succeeded, canceled, failed]
+        providerPaymentId:
+          type: ["string", "null"]
+        message:
+          type: ["string", "null"]
+        idempotent:
+          type: boolean
+
+    PaymentReconciliationSummary:
+      type: object
+      required: [total, pending, paymentFailed, cancelled, requiresReview, confirmedAwaitingReconciliation, confirmedAwaitingReconciliationLastUpdatedAt]
+      properties:
+        total:
+          type: integer
+        pending:
+          type: integer
+        paymentFailed:
+          type: integer
+        cancelled:
+          type: integer
+        requiresReview:
+          type: integer
+        confirmedAwaitingReconciliation:
+          type: integer
+          description: Provider-confirmed payments whose bonus debit is deferred until an administrator reconciles the balance.
+        confirmedAwaitingReconciliationLastUpdatedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: Most recent provider or reconciliation update for a confirmed payment awaiting reconciliation.
+
+    PaymentReconciliationReport:
+      type: object
+      required: [items, summary, status, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentReconciliationItem"
+        summary:
+          $ref: "#/components/schemas/PaymentReconciliationSummary"
+        status:
+          type: string
+          enum: [all, pending, payment_failed, cancelled]
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    BalanceReconciliation:
+      type: object
+      required: [userId, phone, name, pointsBalance, bonusBalanceRub, expectedBalanceRub, differenceRub, differenceCents, legacyEquivalentPoints, status, canCorrect]
+      properties:
+        userId:
+          type: integer
+        phone:
+          type: string
+        name:
+          type: string
+        pointsBalance:
+          type: integer
+        bonusBalanceRub:
+          type: ["number", "null"]
+        expectedBalanceRub:
+          type: number
+          description: Monetary value represented by the legacy point balance at 0.80 RUB per point.
+        differenceRub:
+          type: ["number", "null"]
+        differenceCents:
+          type: ["integer", "null"]
+        legacyEquivalentPoints:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [consistent, rounding_difference, mismatch, unmigrated]
+        canCorrect:
+          type: boolean
+
+    BalanceReconciliationSummary:
+      type: object
+      required: [totalUsers, consistent, roundingDifference, mismatch, unmigrated, returned]
+      properties:
+        totalUsers:
+          type: integer
+        consistent:
+          type: integer
+        roundingDifference:
+          type: integer
+        mismatch:
+          type: integer
+        unmigrated:
+          type: integer
+        returned:
+          type: integer
+
+    BalanceReconciliationReport:
+      type: object
+      required: [items, summary, status, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BalanceReconciliation"
+        summary:
+          $ref: "#/components/schemas/BalanceReconciliationSummary"
+        status:
+          type: string
+          enum: [all, consistent, rounding_difference, mismatch, unmigrated]
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    BalanceReconciliationCorrectionInput:
+      type: object
+      required: [target, reason]
+      properties:
+        target:
+          type: string
+          enum: [monetary, points]
+          description: Source to preserve while bringing the other representation into line.
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+        idempotencyKey:
+          type: string
+          minLength: 1
+
+    BalanceReconciliationCorrection:
+      type: object
+      required: [id, userId, operatorUserId, correctionTarget, reason, idempotencyKey, beforePointsBalance, afterPointsBalance, beforeBonusBalanceRub, afterBonusBalanceRub, beforeDifferenceCents, afterDifferenceCents, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        operatorUserId:
+          type: integer
+        correctionTarget:
+          type: string
+          enum: [monetary, points]
+        reason:
+          type: string
+        idempotencyKey:
+          type: string
+        beforePointsBalance:
+          type: integer
+        afterPointsBalance:
+          type: integer
+        beforeBonusBalanceRub:
+          type: ["number", "null"]
+        afterBonusBalanceRub:
+          type: number
+        beforeDifferenceCents:
+          type: ["integer", "null"]
+        afterDifferenceCents:
+          type: integer
+        createdAt:
+          type: string
+
+    BalanceReconciliationDetail:
+      allOf:
+        - $ref: "#/components/schemas/BalanceReconciliation"
+        - type: object
+          required: [corrections]
+          properties:
+            corrections:
+              type: array
+              items:
+                $ref: "#/components/schemas/BalanceReconciliationCorrection"
+
+    BalanceReconciliationCorrectionResponse:
+      type: object
+      required: [reconciliation, correction, idempotent]
+      properties:
+        reconciliation:
+          $ref: "#/components/schemas/BalanceReconciliation"
+        correction:
+          $ref: "#/components/schemas/BalanceReconciliationCorrection"
+        idempotent:
+          type: boolean
+
+    Partner:
+      type: object
+      required: [id, name, category, bonusMultiplier, isActive]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+          enum: [rent, utilities, transport, health, food, other]
+        description:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        logoObjectPath:
+          type: ["string", "null"]
+        bonusMultiplier:
+          type: number
+        address:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        totalTransactions:
+          type: ["integer", "null"]
+        totalVolumeRub:
+          type: ["number", "null"]
+
+    PartnerLogoCleanupInput:
+      type: object
+      properties:
+        dryRun:
+          type: boolean
+          default: true
+
+    PartnerLogoCleanupFailedPath:
+      type: object
+      required: [path, error]
+      properties:
+        path:
+          type: string
+        error:
+          type: string
+
+    PartnerLogoCleanupResult:
+      type: object
+      required: [dryRun, scanned, referenced, orphaned, removed, failed]
+      properties:
+        dryRun:
+          type: boolean
+        scanned:
+          type: integer
+        referenced:
+          type: integer
+        orphaned:
+          type: array
+          items:
+            type: string
+        removed:
+          type: array
+          items:
+            type: string
+        failed:
+          type: array
+          items:
+            $ref: "#/components/schemas/PartnerLogoCleanupFailedPath"
+
+    PartnerLogoCleanupHistoryEntry:
+      type: object
+      required: [id, adminUserId, adminName, adminPhone, mode, scanned, referenced, orphaned, removed, failed, createdAt]
+      properties:
+        id:
+          type: integer
+        adminUserId:
+          type: integer
+        adminName:
+          type: string
+        adminPhone:
+          type: ["string", "null"]
+        mode:
+          type: string
+          enum: [dry_run, confirmed]
+        scanned:
+          type: integer
+        referenced:
+          type: integer
+        orphaned:
+          type: array
+          items:
+            type: string
+        removed:
+          type: array
+          items:
+            type: string
+        failed:
+          type: array
+          items:
+            $ref: "#/components/schemas/PartnerLogoCleanupFailedPath"
+        createdAt:
+          type: string
+
+    StorageUploadRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+          minimum: 1
+        contentType:
+          type: string
+
+    StorageUploadResponse:
+      type: object
+      required: [uploadURL, objectPath, metadata]
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+        metadata:
+          type: object
+          required: [name, size, contentType]
+          properties:
+            name:
+              type: string
+            size:
+              type: integer
+            contentType:
+              type: string
+
+    PartnerInput:
+      type: object
+      required: [name, category, bonusMultiplier]
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+          enum: [rent, utilities, transport, health, food, other]
+        description:
+          type: string
+        logoUrl:
+          type: string
+        logoObjectPath:
+          type: string
+        bonusMultiplier:
+          type: number
+        address:
+          type: string
+        city:
+          type: string
+
+    PartnerUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+          enum: [rent, utilities, transport, health, food, other]
+        description:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        logoObjectPath:
+          type: ["string", "null"]
+        bonusMultiplier:
+          type: number
+        address:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+
+    Offer:
+      type: object
+      required: [id, partnerId, partnerName, title, bonusMultiplier, category, isActive, expiresAt, isSaved, isActivated]
+      properties:
+        id:
+          type: integer
+        partnerId:
+          type: integer
+        partnerName:
+          type: string
+        partnerLogoUrl:
+          type: ["string", "null"]
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        bonusMultiplier:
+          type: number
+        category:
+          type: string
+          enum: [rent, utilities, transport, health, food, other]
+        minAmountRub:
+          type: ["number", "null"]
+        isActive:
+          type: boolean
+        expiresAt:
+          type: string
+        isSaved:
+          type: boolean
+        isActivated:
+          type: boolean
+
+    OfferActionResponse:
+      type: object
+      required: [offer, saved, activated]
+      properties:
+        offer:
+          $ref: "#/components/schemas/Offer"
+        saved:
+          type: boolean
+        activated:
+          type: boolean
+
+    OfferInput:
+      type: object
+      required: [partnerId, title, bonusMultiplier, category, expiresAt]
+      properties:
+        partnerId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        bonusMultiplier:
+          type: number
+        category:
+          type: string
+          enum: [rent, utilities, transport, health, food, other]
+        minAmountRub:
+          type: number
+        expiresAt:
+          type: string
+
+    OfferUpdate:
+      type: object
+      properties:
+        partnerId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        bonusMultiplier:
+          type: number
+        category:
+          type: string
+          enum: [rent, utilities, transport, health, food, other]
+        minAmountRub:
+          type: ["number", "null"]
+        expiresAt:
+          type: string
+
+    CatalogAuditLog:
+      type: object
+      required: [id, adminUserId, adminName, entityType, entityId, entityName, action, changes, createdAt]
+      properties:
+        id:
+          type: integer
+        adminUserId:
+          type: integer
+        adminName:
+          type: string
+        adminPhone:
+          type: ["string", "null"]
+        entityType:
+          type: string
+          enum: [partner, offer]
+        entityId:
+          type: integer
+        entityName:
+          type: string
+        action:
+          type: string
+          enum: [create, update, delete]
+        changes:
+          type: object
+          additionalProperties:
+            type: object
+            required: [from, to]
+            properties:
+              from: {}
+              to: {}
+        createdAt:
+          type: string
+
+    WebhookRejectionSecuritySource:
+      type: object
+      required: [sourceIp, occurrenceCount, firstSeenAt, lastSeenAt]
+      properties:
+        sourceIp:
+          type: ["string", "null"]
+        occurrenceCount:
+          type: integer
+        firstSeenAt:
+          type: string
+        lastSeenAt:
+          type: string
+
+    WebhookRejectionSecuritySummary:
+      type: object
+      required: [totalRejected, uniqueSources, sources, recentSourceAddresses]
+      properties:
+        totalRejected:
+          type: integer
+        uniqueSources:
+          type: integer
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/WebhookRejectionSecuritySource"
+        recentSourceAddresses:
+          type: array
+          items:
+            type: ["string", "null"]
+
+    DashboardSummary:
+      type: object
+      required: [pointsBalance, status, statusMultiplier, pointsEarnedThisMonth, pointsSpentThisMonth, totalPartnersAvailable, activeOffersCount, pointsToNextStatus, nextStatus, rubEquivalent]
+      properties:
+        pointsBalance:
+          type: integer
+        bonusBalanceRub:
+          type: number
+        status:
+          type: string
+          enum: [novice, silver, gold, platinum]
+        statusMultiplier:
+          type: number
+        pointsEarnedThisMonth:
+          type: integer
+        pointsSpentThisMonth:
+          type: integer
+        totalPartnersAvailable:
+          type: integer
+        activeOffersCount:
+          type: integer
+        pointsToNextStatus:
+          type: ["integer", "null"]
+        nextStatus:
+          type: ["string", "null"]
+        rubEquivalent:
+          type: number
+        bonusEarnedThisMonthRub:
+          type: number
+        bonusRedeemedThisMonthRub:
+          type: number
+
+    ActivityItem:
+      type: object
+      required: [id, type, description, pointsDelta, amountRub, amountRubSigned, bonusValueRub, direction, dealType, settlementStatus, operationSource, isReversal, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [earn, redeem, expire, bonus]
+        category:
+          type: ["string", "null"]
+        description:
+          type: string
+        pointsDelta:
+          type: integer
+        amountRub:
+          type: ["number", "null"]
+        amountRubSigned:
+          type: ["number", "null"]
+        bonusValueRub:
+          type: ["number", "null"]
+        direction:
+          type: ["string", "null"]
+          enum: [debit, credit, null]
+        dealType:
+          type: ["string", "null"]
+          enum: [partner_purchase, rental_deal, null]
+        settlementStatus:
+          type: ["string", "null"]
+          enum: [settled, refunded, null]
+        operationSource:
+          type: ["string", "null"]
+        isReversal:
+          type: boolean
+        partnerName:
+          type: ["string", "null"]
+        partnerLogoUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    CategoryStat:
+      type: object
+      required: [category, pointsEarned, transactionCount, totalAmountRub]
+      properties:
+        category:
+          type: string
+        pointsEarned:
+          type: integer
+        transactionCount:
+          type: integer
+        totalAmountRub:
+          type: number
+
+    BonusCalculationInput:
+      type: object
+      required: [amountRub, category, userStatus]
+      properties:
+        amountRub:
+          type: number
+        category:
+          type: string
+          enum: [rent, utilities, transport, health, food, other]
+        userStatus:
+          type: string
+          enum: [novice, silver, gold, platinum]
+        promoMultiplier:
+          type: number
+
+    BonusCalculationResult:
+      type: object
+      required: [pointsEarned, rubEquivalent, baseRate, categoryMultiplier, statusMultiplier, effectiveMultiplier]
+      properties:
+        pointsEarned:
+          type: integer
+        rubEquivalent:
+          type: number
+        baseRate:
+          type: number
+        categoryMultiplier:
+          type: number
+        statusMultiplier:
+          type: number
+        promoMultiplier:
+          type: number
+        effectiveMultiplier:
+          type: number
+        breakdown:
+          type: string
+
+    EconomicsBreakdown:
+      type: object
+      required: [dealCount, grossTurnoverRub, netTurnoverRub, partnerCommissionRub, landlordCommissionRub, tenantBonusAccruedRub, landlordBonusAccruedRub, bonusRedeemedRub, refundsRub, netRevenueRub, bonusLiabilityCostRub, contributionProfitRub, contributionMarginPercent, averageCheckRub]
+      properties:
+        dealCount:
+          type: integer
+        grossTurnoverRub:
+          type: number
+        netTurnoverRub:
+          type: number
+        partnerCommissionRub:
+          type: number
+        landlordCommissionRub:
+          type: number
+        tenantBonusAccruedRub:
+          type: number
+        landlordBonusAccruedRub:
+          type: number
+        bonusRedeemedRub:
+          type: number
+        refundsRub:
+          type: number
+          description: Positive magnitude of gross refunds; turnover and revenue already include the negative reversal.
+        netRevenueRub:
+          type: number
+        bonusLiabilityCostRub:
+          type: number
+        contributionProfitRub:
+          type: number
+        contributionMarginPercent:
+          type: number
+          description: Contribution profit divided by net revenue, in percent; zero when net revenue is zero.
+        averageCheckRub:
+          type: number
+
+    EconomicsDealTypeBreakdown:
+      allOf:
+        - $ref: "#/components/schemas/EconomicsBreakdown"
+        - type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              enum: [partner_purchase, rental_deal]
+
+    EconomicsPartnerBreakdown:
+      allOf:
+        - $ref: "#/components/schemas/EconomicsBreakdown"
+        - type: object
+          required: [partnerId, partnerName, category]
+          properties:
+            partnerId:
+              type: ["integer", "null"]
+            partnerName:
+              type: string
+            category:
+              type: string
+
+    EconomicsCategoryBreakdown:
+      allOf:
+        - $ref: "#/components/schemas/EconomicsBreakdown"
+        - type: object
+          required: [category]
+          properties:
+            category:
+              type: string
+
+    EconomicsPolicy:
+      type: object
+      required: [currency, purchaseMaxRedemptionRate, partnerFeeRate, landlordFeeRate, rentalTenantBonusRate, rentalLandlordBonusRate]
+      properties:
+        currency:
+          type: string
+          enum: [RUB]
+        purchaseMaxRedemptionRate:
+          type: number
+        partnerFeeRate:
+          type: number
+        landlordFeeRate:
+          type: number
+        rentalTenantBonusRate:
+          type: number
+        rentalLandlordBonusRate:
+          type: number
+
+    EconomicsAuditDiscrepancy:
+      type: object
+      required: [code, field, expectedRub, actualRub, differenceRub, message]
+      properties:
+        code:
+          type: string
+          enum: [deal_amounts_mismatch, missing_ledger_posting, ledger_amount_mismatch, duplicate_ledger_posting, missing_refund_reversal, refund_reversal_amount_mismatch, duplicate_refund_reversal, orphan_refund_reversal]
+        field:
+          type: string
+        expectedRub:
+          type: ["number", "null"]
+        actualRub:
+          type: ["number", "null"]
+        differenceRub:
+          type: ["number", "null"]
+        expectedCount:
+          type: integer
+        actualCount:
+          type: integer
+        message:
+          type: string
+
+    EconomicsAuditDeal:
+      type: object
+      required: [dealId, kind, status, amounts, discrepancies]
+      properties:
+        dealId:
+          type: integer
+        kind:
+          type: string
+          enum: [partner_purchase, rental_deal]
+        status:
+          type: string
+          enum: [settled, refunded]
+        amounts:
+          type: object
+          required: [grossAmountRub, bonusRedeemedRub, netAmountRub, feeAmountRub, landlordBonusRub, tenantBonusRub]
+          properties:
+            grossAmountRub:
+              type: number
+            bonusRedeemedRub:
+              type: number
+            netAmountRub:
+              type: number
+            feeAmountRub:
+              type: number
+            landlordBonusRub:
+              type: number
+            tenantBonusRub:
+              type: number
+        discrepancies:
+          type: array
+          items:
+            $ref: "#/components/schemas/EconomicsAuditDiscrepancy"
+
+    EconomicsAuditReport:
+      type: object
+      required: [source, checkedDeals, cleanDeals, discrepantDeals, results, discrepancies, limit, offset, snapshotAt]
+      properties:
+        source:
+          type: string
+          enum: [financial_deals_and_ledger_audit]
+        checkedDeals:
+          type: integer
+        cleanDeals:
+          type: integer
+        discrepantDeals:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/EconomicsAuditDeal"
+        discrepancies:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/EconomicsAuditDiscrepancy"
+              - type: object
+                required: [dealId, kind, status]
+                properties:
+                  dealId:
+                    type: integer
+                  kind:
+                    type: string
+                    enum: [partner_purchase, rental_deal]
+                  status:
+                    type: string
+                    enum: [settled, refunded]
+        limit:
+          type: integer
+          description: Maximum number of deals included in this review window.
+        offset:
+          type: integer
+          description: Number of eligible deals skipped before this review window.
+        snapshotAt:
+          type: string
+          format: date-time
+          description: Point-in-time boundary for this audit review. Reuse this value when requesting another page.
+
+    PlatformEconomics:
+      type: object
+      required: [period, source, status, confirmedLedgerEntries, summary, byDealType, byPartner, byCategory, policy, operatingCostsRub, profitBasis, activeUsers]
+      properties:
+        period:
+          type: object
+          required: [from, to, type, timezone, isEmpty]
+          properties:
+            from:
+              type: string
+            to:
+              type: string
+            type:
+              type: string
+              enum: [day, week, month, custom]
+            timezone:
+              type: string
+              enum: [UTC]
+            isEmpty:
+              type: boolean
+        source:
+          type: string
+          enum: [confirmed_financial_deals_and_ledger]
+        status:
+          type: string
+          enum: [all, settled, refunded]
+        confirmedLedgerEntries:
+          type: integer
+        summary:
+          allOf:
+            - $ref: "#/components/schemas/EconomicsBreakdown"
+            - type: object
+              required: [outstandingBonusLiabilityRub]
+              properties:
+                outstandingBonusLiabilityRub:
+                  type: number
+        byDealType:
+          type: array
+          items:
+            $ref: "#/components/schemas/EconomicsDealTypeBreakdown"
+        byPartner:
+          type: array
+          items:
+            $ref: "#/components/schemas/EconomicsPartnerBreakdown"
+        byCategory:
+          type: array
+          items:
+            $ref: "#/components/schemas/EconomicsCategoryBreakdown"
+        policy:
+          $ref: "#/components/schemas/EconomicsPolicy"
+        operatingCostsRub:
+          type: ["number", "null"]
+          description: Not recorded by the platform; contribution profit is before operating costs.
+        profitBasis:
+          type: string
+          enum: [contribution_before_operating_costs]
+        activeUsers:
+          type: integer
+        usersByStatus:
+          type: object
+          additionalProperties:
+            type: integer
+
+    LiveScore:
+      type: object
+      required: [score, baseScore, categoryScore, scoreVersion, tier, tierLabel, components, isPhoneVerified, isIdentityVerified, isIncomeVerified, verificationLevel, totalLeases, activeLeases]
+      properties:
+        score:
+          type: integer
+        baseScore:
+          type: integer
+          description: Fixed starting score, shown separately from category contributions.
+        categoryScore:
+          type: integer
+          description: Sum of capped category contributions; score is clamp(baseScore + categoryScore, 0, 1000).
+        scoreVersion:
+          type: string
+          description: Stable fingerprint of the account verification state and ordered score events.
+        tier:
+          type: string
+          enum: [below_average, average, above_average, high, premium]
+        tierLabel:
+          type: string
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreComponent"
+        activeLease:
+          $ref: "#/components/schemas/LeaseSnapshot"
+          nullable: true
+        isPhoneVerified:
+          type: boolean
+        isIdentityVerified:
+          type: boolean
+        isIncomeVerified:
+          type: boolean
+        verificationLevel:
+          type: integer
+        totalLeases:
+          type: integer
+        activeLeases:
+          type: integer
+
+    ScoreComponent:
+      type: object
+      required: [key, name, score, maxScore, minScore, capApplied, capDescription, description, details, events]
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        score:
+          type: integer
+        maxScore:
+          type: integer
+        minScore:
+          type: integer
+        capApplied:
+          type: boolean
+        capDescription:
+          type: string
+        description:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              achieved:
+                type: boolean
+              points:
+                type: integer
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreEvent"
+
+    ScoreEvent:
+      type: object
+      required: [id, eventType, scoreChange, description, createdAt]
+      properties:
+        id:
+          type: integer
+        eventType:
+          type: string
+        scoreChange:
+          type: integer
+        description:
+          type: string
+        createdAt:
+          type: string
+        relatedLeaseId:
+          type: ["integer", "null"]
+
+    Lease:
+      type: object
+      required: [id, address, city, monthlyRentRub, startDate, isActive, onTimePayments, latePayments]
+      properties:
+        id:
+          type: integer
+        address:
+          type: string
+        city:
+          type: string
+        landlordName:
+          type: ["string", "null"]
+        landlordUserId:
+          type: ["integer", "null"]
+        monthlyRentRub:
+          type: number
+        startDate:
+          type: string
+        endDate:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        depositAmountRub:
+          type: ["number", "null"]
+        depositReturned:
+          type: ["boolean", "null"]
+        onTimePayments:
+          type: integer
+        latePayments:
+          type: integer
+        landlordRating:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+
+    LeaseSnapshot:
+      type: object
+      required: [address, city, monthlyRentRub, onTimePayments, startDate]
+      properties:
+        address:
+          type: string
+        city:
+          type: string
+        monthlyRentRub:
+          type: number
+        onTimePayments:
+          type: integer
+        latePayments:
+          type: integer
+        startDate:
+          type: string
+
+    LeaseInput:
+      type: object
+      required: [address, monthlyRentRub]
+      properties:
+        address:
+          type: string
+        city:
+          type: string
+        landlordName:
+          type: string
+        landlordUserId:
+          type: integer
+        monthlyRentRub:
+          type: number
+          minimum: 0
+        startDate:
+          type: string
+          format: date-time
+        depositAmountRub:
+          type: number
+          minimum: 0
+
+    OtpRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+
+    OtpResponse:
+      type: object
+      required: [success, maskedPhone, expiresIn]
+      properties:
+        success:
+          type: boolean
+        maskedPhone:
+          type: string
+        expiresIn:
+          type: integer
+        devCode:
+          type: string
+
+    OtpVerify:
+      type: object
+      required: [phone, code]
+      properties:
+        phone:
+          type: string
+        code:
+          type: string
+
+    AuthToken:
+      type: object
+      required: [token, userId, name, phone, isAdmin]
+      properties:
+        token:
+          type: string
+        userId:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        isAdmin:
+          type: boolean
+
+    VerifyResponse:
+      type: object
+      required: [success, verificationType, status, scoreChange, newScore, applicationId]
+      properties:
+        success:
+          type: boolean
+        verificationType:
+          type: string
+          enum: [identity, income]
+        status:
+          $ref: "#/components/schemas/VerificationStatus"
+        scoreChange:
+          type: integer
+        newScore:
+          type: integer
+        applicationId:
+          type: integer
+        application:
+          $ref: "#/components/schemas/VerificationApplication"
+        alreadyDone:
+          type: boolean
+
+    ScoreTimelinePoint:
+      type: object
+      required: [date, score]
+      properties:
+        date:
+          type: string
+        score:
+          type: integer
+        change:
+          type: integer
+        description:
+          type: string
+        eventType:
+          type: string
+        scoreVersion:
+          type: string
+
+    DisputeInput:
+      type: object
+      required: [reason]
+      description: At least one explicit lease/event binding or the user's active lease must resolve at runtime.
+      properties:
+        reason:
+          type: string
+          minLength: 10
+          maxLength: 1000
+        leaseId:
+          type: integer
+          minimum: 1
+        scoreEventId:
+          type: integer
+          minimum: 1
+
+    DisputeResponse:
+      type: object
+      required: [success, message, scoreImpact, newScore, dispute]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        scoreImpact:
+          type: integer
+        newScore:
+          type: integer
+        dispute:
+          $ref: "#/components/schemas/ScoreDispute"
+
+    ScoreDispute:
+      type: object
+      required: [id, leaseId, scoreEventId, status, version, createdAt, updatedAt, resolvedAt]
+      properties:
+        id:
+          type: integer
+        leaseId:
+          type: integer
+        scoreEventId:
+          type: ["integer", "null"]
+        reason:
+          type: string
+        resolutionReason:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [created, under_review, resolved, rejected]
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    AdminScoreDispute:
+      allOf:
+        - $ref: "#/components/schemas/ScoreDispute"
+        - type: object
+          required: [userId, userName, leaseAddress]
+          properties:
+            userId:
+              type: integer
+            userName:
+              type: ["string", "null"]
+            leaseAddress:
+              type: ["string", "null"]
+
+    ScoreDisputeDecision:
+      type: object
+      required: [status, reason]
+      properties:
+        status:
+          type: string
+          enum: [under_review, resolved, rejected]
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 1000
+        expectedVersion:
+          type: integer
+          minimum: 1
+
+    ScoreDisputeDecisionResponse:
+      type: object
+      required: [success, idempotent, dispute]
+      properties:
+        success:
+          type: boolean
+        idempotent:
+          type: boolean
+        newScore:
+          type: integer
+        dispute:
+          $ref: "#/components/schemas/AdminScoreDispute"
+
+    PaymentResponse:
+      type: object
+      required: [success, scoreChange, newScore, idempotent]
+      properties:
+        success:
+          type: boolean
+        scoreChange:
+          type: integer
+        newScore:
+          type: integer
+        streakBonus:
+          type: integer
+        onTimePayments:
+          type: integer
+        latePayments:
+          type: integer
+        idempotent:
+          type: boolean
+
+    LeaseUpdate:
+      type: object
+      properties:
+        landlordRating:
+          type: number
+          minimum: 1
+          maximum: 5
+        landlordName:
+          type: string
+        depositReturned:
+          type: boolean
+        isActive:
+          type: boolean
+        endDate:
+          type: string
+          format: date-time
+
+    CreateLivePassportShare:
+      type: object
+      properties:
+        expiresInDays:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 7
+
+    LivePassportShare:
+      type: object
+      required: [id, expiresAt, revokedAt, createdAt, lastAccessedAt, status]
+      properties:
+        id:
+          type: integer
+        expiresAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        lastAccessedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [active, expired, revoked]
+
+    LivePassportShareCreated:
+      allOf:
+        - $ref: "#/components/schemas/LivePassportShare"
+        - type: object
+          required: [token]
+          properties:
+            token:
+              type: string
+              minLength: 40
+              maxLength: 80
+
+    LivePassport:
+      type: object
+      required: [score, baseScore, categoryScore, scoreVersion, tier, tierLabel, components, isPhoneVerified, isIdentityVerified, isIncomeVerified, totalLeases, activeLeases, completedLeases, totalTenureMonths, totalOnTimePayments, totalLatePayments, generatedAt]
+      properties:
+        score:
+          type: integer
+        baseScore:
+          type: integer
+        categoryScore:
+          type: integer
+        scoreVersion:
+          type: string
+        tier:
+          type: string
+          enum: [below_average, average, above_average, high, premium]
+        tierLabel:
+          type: string
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreComponent"
+        isPhoneVerified:
+          type: boolean
+        isIdentityVerified:
+          type: boolean
+        isIncomeVerified:
+          type: boolean
+        totalLeases:
+          type: integer
+        activeLeases:
+          type: integer
+        completedLeases:
+          type: integer
+        totalTenureMonths:
+          type: integer
+        totalOnTimePayments:
+          type: integer
+        totalLatePayments:
+          type: integer
+        generatedAt:
+          type: string
